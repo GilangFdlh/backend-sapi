@@ -137,18 +137,33 @@ def on_message(client, userdata, message):
         print(f"MQTT Listener: Error saat memproses pesan: {e}")
 
 def start_mqtt_listener():
-    create_ca_certificate()
+    """Fungsi untuk menjalankan listener MQTT di background thread."""
+    # DIHAPUS: Kita tidak lagi perlu membuat file sertifikat sama sekali.
+    # create_ca_certificate() 
+
     print("MQTT Listener: Mengambil data histori HARI INI dari Firebase...")
     today_date_str = datetime.now(TIMEZONE).strftime('%Y-%m-%d')
     for id in MQTT_TOPICS.keys():
         ref_today = db.reference(f'data_mentah/{id}/{today_date_str}')
         initial_data = ref_today.get()
         if initial_data: all_data[id].extend(list(initial_data.values()))
-    
-    # Menghapus argumen yang menyebabkan error di versi paho-mqtt yang berbeda
-    client = mqtt.Client() 
+
+        ref_arsip_today = db.reference(f'arsip_harian_olahan/{id}/{today_date_str}')
+        arsip_sudah_ada = ref_arsip_today.get()
+        if arsip_sudah_ada:
+            last_archived_hour[id] = [int(hour) for hour in arsip_sudah_ada.keys()]
+            print(f"MQTT Listener: Arsip yang sudah ada untuk [{id}] hari ini: {last_archived_hour[id]}")
+
+    # --- PERUBAHAN UTAMA ADA DI SINI ---
+    # 1. Menggunakan API versi 2 untuk mengatasi DeprecationWarning
+    client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
+
     client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-    client.tls_set(ca_certs=CA_CERT_FILE, tls_version=ssl.PROTOCOL_TLS)
+
+    # 2. Mengaktifkan TLS tanpa menunjuk ke file lokal.
+    # Ini akan menggunakan daftar sertifikat terpercaya dari sistem operasi server.
+    client.tls_set(tls_version=ssl.PROTOCOL_TLS)
+
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(MQTT_BROKER, MQTT_PORT)
