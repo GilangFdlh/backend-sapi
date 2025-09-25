@@ -24,7 +24,8 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MQTT_BROKER = "yf9ee3c8.ala.us-east-1.emqxsl.com"
 MQTT_PORT = 8883
 MQTT_USER = "sapi"
-MQTT_PASSWORD = "sapicjm" # Ambil dari env var, fallback ke default
+# Gunakan password langsung di kode, atau ganti dengan os.getenv("MQTT_PASSWORD") jika di server
+MQTT_PASSWORD = "sapicjm" 
 MQTT_TOPICS = {"wadah1": "fsh/sapi/2/water1", "wadah2": "fsh/sapi/2/water2"}
 
 # --- Konfigurasi Firebase ---
@@ -97,8 +98,12 @@ def create_ca_certificate():
         with open(CA_CERT_FILE, 'w') as f: f.write(ca_cert_content)
 
 def on_connect(client, userdata, flags, rc, properties=None):
-    if rc == 0: print("MQTT Listener: Berhasil terhubung ke Broker!"); client.subscribe([(t, 0) for t in MQTT_TOPICS.values()])
-    else: print(f"MQTT Listener: Gagal terhubung, kode status: {rc}")
+    if rc == 0: 
+        print("MQTT Listener: Berhasil terhubung ke Broker!")
+        client.subscribe([(t, 0) for t in MQTT_TOPICS.values()])
+        print(f"MQTT Listener: Subscribe ke topics: {[t for t in MQTT_TOPICS.values()]}")
+    else: 
+        print(f"MQTT Listener: Gagal terhubung, kode status: {rc}")
 
 def on_message(client, userdata, message):
     try:
@@ -119,7 +124,8 @@ def on_message(client, userdata, message):
         with data_lock:
             if all_data[wadah_id]:
                 last_entry_date = pd.to_datetime(all_data[wadah_id][-1]['timestamp'], format='mixed', dayfirst=False).date()
-                if waktu_sekarang.date() != last_entry_date: all_data[wadah_id].clear()
+                if waktu_sekarang.date() != last_entry_date:
+                    all_data[wadah_id].clear()
             
             all_data[wadah_id].append(new_raw_data)
             df = pd.DataFrame(all_data[wadah_id])
@@ -137,33 +143,18 @@ def on_message(client, userdata, message):
         print(f"MQTT Listener: Error saat memproses pesan: {e}")
 
 def start_mqtt_listener():
-    """Fungsi untuk menjalankan listener MQTT di background thread."""
-    # DIHAPUS: Kita tidak lagi perlu membuat file sertifikat sama sekali.
-    # create_ca_certificate() 
-
+    create_ca_certificate()
     print("MQTT Listener: Mengambil data histori HARI INI dari Firebase...")
     today_date_str = datetime.now(TIMEZONE).strftime('%Y-%m-%d')
     for id in MQTT_TOPICS.keys():
         ref_today = db.reference(f'data_mentah/{id}/{today_date_str}')
         initial_data = ref_today.get()
-        if initial_data: all_data[id].extend(list(initial_data.values()))
-
-        ref_arsip_today = db.reference(f'arsip_harian_olahan/{id}/{today_date_str}')
-        arsip_sudah_ada = ref_arsip_today.get()
-        if arsip_sudah_ada:
-            last_archived_hour[id] = [int(hour) for hour in arsip_sudah_ada.keys()]
-            print(f"MQTT Listener: Arsip yang sudah ada untuk [{id}] hari ini: {last_archived_hour[id]}")
-
-    # --- PERUBAHAN UTAMA ADA DI SINI ---
-    # 1. Menggunakan API versi 2 untuk mengatasi DeprecationWarning
+        if initial_data: 
+            all_data[id].extend(list(initial_data.values()))
+    
     client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-
     client.username_pw_set(MQTT_USER, MQTT_PASSWORD)
-
-    # 2. Mengaktifkan TLS tanpa menunjuk ke file lokal.
-    # Ini akan menggunakan daftar sertifikat terpercaya dari sistem operasi server.
-    client.tls_set(tls_version=ssl.PROTOCOL_TLS)
-
+    client.tls_set(ca_certs=CA_CERT_FILE, tls_version=ssl.PROTOCOL_TLS)
     client.on_connect = on_connect
     client.on_message = on_message
     client.connect(MQTT_BROKER, MQTT_PORT)
@@ -224,21 +215,42 @@ def predict():
     fitur_persentase_konsumsi = ((fitur_konsumsi_kumulatif / 1000) / berat_tubuh) * 100 if berat_tubuh > 0 else 0
     
     kolom_fitur = ['Jam', 'Konsumsi Kumulatif (ml)', 'Konsumsi Interval (ml)', 'Berat Tubuh (kg)', 'Suhu Tubuh (C°)', 'Suhu Lingkungan (C°)', 'Gap Suhu', 'Persentase Konsumsi (%)', 'Pakan (kg)']
-    data_fitur = [fitur_jam, fitur_konsumsi_kumulatif, fitur_konsumsi_interval, berat_tubuh, suhu_tubuh, suhu_lingkungan, fitur_gap_suhu, fitur_persentase_konsumsi, pakan]
+    data_fitur = [
+        fitur_jam, fitur_konsumsi_kumulatif, fitur_konsumsi_interval, berat_tubuh, suhu_tubuh,
+        suhu_lingkungan, fitur_gap_suhu, fitur_persentase_konsumsi, pakan
+    ]
     input_df = pd.DataFrame([data_fitur], columns=kolom_fitur)
     
     prediksi_angka = model_pipeline.predict(input_df)[0]
     hasil_prediksi_label = int_to_label.get(prediksi_angka, "Label Tidak Dikenal")
     
-    arsip_fitur_lengkap = input_df.to_dict('records')[0]
-    arsip_fitur_lengkap["timestamp_prediksi"] = waktu_saat_ini_str
-    arsip_fitur_lengkap["wadah_id"] = wadah_id
-    arsip_fitur_lengkap["hasil_prediksi"] = hasil_prediksi_label
-    db.reference(f'arsip_prediksi/{wadah_id}').push(arsip_fitur_lengkap)
+    # DIUBAH: Buat dictionary untuk memformat hasil sebelum dikirim/disimpan
+    detail_fitur_formatted = {
+        'Jam': fitur_jam,
+        'Konsumsi Kumulatif (ml)': round(fitur_konsumsi_kumulatif, 2),
+        'Konsumsi Interval (ml)': round(fitur_konsumsi_interval, 2),
+        'Berat Tubuh (kg)': berat_tubuh,
+        'Suhu Tubuh (C°)': suhu_tubuh,
+        'Suhu Lingkungan (C°)': suhu_lingkungan,
+        'Gap Suhu': round(fitur_gap_suhu, 2),
+        'Persentase Konsumsi (%)': round(fitur_persentase_konsumsi, 2),
+        'Pakan (kg)': pakan
+    }
+    
+    arsip_lengkap = detail_fitur_formatted.copy()
+    arsip_lengkap["timestamp_prediksi"] = waktu_saat_ini_str
+    arsip_lengkap["wadah_id"] = wadah_id
+    arsip_lengkap["hasil_prediksi"] = hasil_prediksi_label
+    db.reference(f'arsip_prediksi/{wadah_id}').push(arsip_lengkap)
     
     print(f"API Server: Hasil prediksi untuk [{wadah_id}] adalah {hasil_prediksi_label}. Arsip disimpan.")
     
-    return jsonify({'status': 'success', 'hasil_prediksi': hasil_prediksi_label, 'timestamp_prediksi': waktu_saat_ini_str, 'detail_fitur': arsip_fitur_lengkap})
+    return jsonify({
+        'status': 'success',
+        'hasil_prediksi': hasil_prediksi_label,
+        'timestamp_prediksi': waktu_saat_ini_str,
+        'detail_fitur': detail_fitur_formatted
+    })
 
 # =============================================================================
 # MENJALANKAN KEDUA APLIKASI
@@ -249,4 +261,5 @@ if __name__ == "__main__":
     mqtt_thread.start()
     
     print("\nAPI Server: Memulai server Flask di http://0.0.0.0:5000")
+    # debug=False direkomendasikan untuk production
     app.run(host='0.0.0.0', port=5000, debug=False)
