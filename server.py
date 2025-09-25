@@ -24,7 +24,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MQTT_BROKER = "yf9ee3c8.ala.us-east-1.emqxsl.com"
 MQTT_PORT = 8883
 MQTT_USER = "sapi"
-MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "sapicjm") # Ambil dari env var, fallback ke default
+MQTT_PASSWORD = "sapicjm" # Ambil dari env var, fallback ke default
 MQTT_TOPICS = {"wadah1": "fsh/sapi/2/water1", "wadah2": "fsh/sapi/2/water2"}
 
 # --- Konfigurasi Firebase ---
