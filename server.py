@@ -231,6 +231,7 @@ def predict():
     hasil_prediksi_label = int_to_label.get(prediksi_angka, "Label Tidak Dikenal")
     
     detail_fitur = {
+        'wadah_id': wadah_id, # <-- BARIS INI DITAMBAHKAN
         'Jam': fitur_jam,
         'Konsumsi Kumulatif (ml)': round(fitur_konsumsi_kumulatif, 2),
         'Konsumsi Interval (ml)': round(fitur_konsumsi_interval, 2),
