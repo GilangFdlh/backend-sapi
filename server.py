@@ -177,9 +177,10 @@ def get_consumption_at_time(wadah_id, date_str, target_time_str):
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    if model_pipeline is None: return jsonify({'status': 'error', 'message': 'Model tidak siap.'}), 500
-    data = request.get_json()
-    if not data: return jsonify({'status': 'error', 'message': 'Request body harus JSON.'}), 400
+    global TIMEZONE # BARIS INI DITAMBAHKAN
+    
+    if model_pipeline is None:
+        return jsonify({'status': 'error', 'message': 'Model tidak siap, server error.'}), 500
     try:
         wadah_id = data['wadah_id']
         berat_tubuh = float(data['berat_tubuh'])
