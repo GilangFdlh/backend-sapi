@@ -212,11 +212,13 @@ def predict():
     fitur_jam = get_feature_jam(waktu_saat_ini)
     fitur_konsumsi_kumulatif = get_consumption_at_time(wadah_id, date_str, waktu_saat_ini_str)
 
-    jam_sebelumnya_map = {10: 8, 12: 10, 14: 12, 16: 14}
     kumulatif_sebelumnya = 0
     if fitur_jam > 8:
-        jam_sebelumnya = jam_sebelumnya_map[fitur_jam]
-        waktu_sebelumnya_str = datetime.combine(waktu_saat_ini.date(), dt_time(jam_sebelumnya, 0)).strftime('%Y-%m-%d %H:%M:%S')
+        # Tentukan batas waktu query: yaitu tepat sebelum periode jam saat ini dimulai.
+        # Contoh: Jika fitur_jam adalah 10, maka batasnya adalah '... 09:59:59'.
+        jam_batas_query = fitur_jam
+        waktu_sebelumnya_str = f"{waktu_saat_ini.date().strftime('%Y-%m-%d')} {jam_batas_query - 1:02d}:59:59"
+        # Ambil nilai kumulatif terakhir SEBELUM periode saat ini
         kumulatif_sebelumnya = get_consumption_at_time(wadah_id, date_str, waktu_sebelumnya_str)
 
     fitur_konsumsi_interval = fitur_konsumsi_kumulatif - kumulatif_sebelumnya
