@@ -173,13 +173,27 @@ def start_mqtt_listener():
 # BAGIAN 2: LOGIKA SERVER PREDIKSI (API)
 # =============================================================================
 def get_feature_jam(current_time):
-    hour = current_time.hour
-    if 0 <= hour < 10: return 8
-    if 10 <= hour < 12: return 10
-    if 12 <= hour < 14: return 12
-    if 14 <= hour < 16: return 14
-    if 16 <= hour <= 23: return 16
-    return 8
+    """Menentukan nilai fitur 'Jam' berdasarkan waktu saat ini dengan aturan baru yang lebih spesifik."""
+    # Ambil hanya komponen waktu (jam, menit, detik) dari datetime
+    now_time = current_time.time()
+
+    # Aturan dari rentang waktu paling akhir ke paling awal
+    
+    # Lebih dari atau sama dengan 14:01
+    if now_time >= dt_time(14, 1):
+        return 16
+    # Lebih dari atau sama dengan 12:01
+    elif now_time >= dt_time(12, 1):
+        return 14
+    # Lebih dari atau sama dengan 10:01
+    elif now_time >= dt_time(10, 1):
+        return 12
+    # Lebih dari atau sama dengan 08:01
+    elif now_time >= dt_time(8, 1):
+        return 10
+    # Sisanya (dari jam 00:00 hingga 08:00)
+    else:
+        return 8
 
 def get_consumption_at_time(wadah_id, date_str, target_time_str):
     ref = db.reference(f'data_olahan/{wadah_id}/{date_str}')
