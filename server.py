@@ -226,14 +226,26 @@ def predict():
     fitur_jam = get_feature_jam(waktu_saat_ini)
     fitur_konsumsi_kumulatif = get_consumption_at_time(wadah_id, date_str, waktu_saat_ini_str)
 
+    # --- AWAL PERUBAHAN ---
     kumulatif_sebelumnya = 0
     if fitur_jam > 8:
-        # Tentukan batas waktu query: yaitu tepat sebelum periode jam saat ini dimulai.
-        # Contoh: Jika fitur_jam adalah 10, maka batasnya adalah '... 09:59:59'.
-        jam_batas_query = fitur_jam
-        waktu_sebelumnya_str = f"{waktu_saat_ini.date().strftime('%Y-%m-%d')} {jam_batas_query - 1:02d}:59:59"
-        # Ambil nilai kumulatif terakhir SEBELUM periode saat ini
-        kumulatif_sebelumnya = get_consumption_at_time(wadah_id, date_str, waktu_sebelumnya_str)
+        # Tentukan jam batas periode sebelumnya secara eksplisit
+        if fitur_jam == 10:
+            jam_batas_sebelumnya = 8
+        elif fitur_jam == 12:
+            jam_batas_sebelumnya = 10
+        elif fitur_jam == 14:
+            jam_batas_sebelumnya = 12
+        elif fitur_jam == 16:
+            jam_batas_sebelumnya = 14
+        
+        # Format query agar mencari data terakhir TEPAT pada jam batas atau sedikit sesudahnya
+        # Contoh: Mencari data terakhir di rentang "08:00:00" sampai "08:00:59"
+        waktu_sebelumnya_str_start = f"{date_str} {jam_batas_sebelumnya:02d}:00:00"
+        
+        # Menggunakan query yang sama untuk mendapatkan nilai pada waktu tersebut
+        kumulatif_sebelumnya = get_consumption_at_time(wadah_id, date_str, waktu_sebelumnya_str_start)
+    # --- AKHIR PERUBAHAN ---
 
     fitur_konsumsi_interval = fitur_konsumsi_kumulatif - kumulatif_sebelumnya
     fitur_gap_suhu = suhu_tubuh - suhu_lingkungan
